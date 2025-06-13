@@ -9,7 +9,7 @@ public class Response<T>
     public T? Data { get; set; }
     public int StatusCode { get; set; }
 
-    public Response(T data, string massage)
+    public Response(T? data, string massage)
     {
         IsSuccess = true;
         Massage = massage;

@@ -3,6 +3,7 @@ using AutoMapper;
 using Domain.ApiResponse;
 using Domain.DTOs.BookDTO;
 using Domain.Enntities;
+using Domain.Filters;
 using Infrastucture.Data;
 using Infrastucture.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -43,21 +44,35 @@ public class BookService(DataContext context, Mapper mapper) : IBookService
         return new Response<string>(null, "Deleted Book Successfuly");
     }
 
-    public async Task<Response<List<GetBookDTO>>> GetAllBooksAsync()
+    public async Task<Response<List<GetBookDTO>>> GetAllBooksAsync(BookFilter bookFilter)
     {
-        var books = await context.Books
-                    .Select(a => new GetBookDTO
-                    {
-                        Title = a.Title,
-                        Type = a.Type,
-                        PublisherId = a.PublisherId,
-                        Price = a.Price,
-                        Advance = a.Advance,
-                        Ytdsales = a.Ytdsales,
-                        PubDate = a.PubDate
-                    }).ToListAsync();
+        var validFilter = new ValidFilter(bookFilter.PageNumber, bookFilter.PageSize);
+        var query = context.Books.AsQueryable();
 
-        return new Response<List<GetBookDTO>>(books, "Successfuly");
+        if (!string.IsNullOrEmpty(bookFilter.Title))
+        {
+            query = query.Where(b => b.Title.ToLower().Trim().Contains(bookFilter.Title.ToLower().Trim()));
+        }
+
+        if (bookFilter.MinPrice != null)
+        {
+            query = query.Where(b => b.Price >= bookFilter.MinPrice);
+        }
+
+        if (bookFilter.MaxPrice != null)
+        {
+            query = query.Where(b => b.Price <= bookFilter.MaxPrice);
+        }
+
+        var totalRecords = await query.CountAsync();
+
+        var paged = await query
+            .Skip((validFilter.PageNumber - 1) * validFilter.PageSize)
+            .Take(validFilter.PageSize)
+            .ToListAsync();
+
+        var mapped = mapper.Map<List<GetBookDTO>>(paged);
+        return new Response<List<GetBookDTO>>(mapped, totalRecords, validFilter.PageNumber, validFilter.PageSize);
     }
 
     public async Task<Response<GetBookDTO>>? GetBookByIdAsync(int id)
